@@ -676,46 +676,42 @@ python -m http.server 8080
 
 **Panel de Configuración — Estado inicial (azul)**
 
-![Configuración inicial](./screenshots/01-configuracion.png)
+![Configuración inicial](1.png)
 
 ---
 
 **Infusión activa — Barra de progreso y contador digital (verde)**
 
-![Infusión activa](./screenshots/02-infusion.png)
+![Infusión activa](2.png)
 
 ---
 
 **Sistema en Pausa — Panel ámbar con datos congelados**
 
-![Estado Pausa](./screenshots/03-pausa.png)
+![Estado Pausa](3.png)
 
 ---
 
 **Alerta crítica — Detección de aire (rojo parpadeante)**
 *Nótese el snapshot de ml preservados y el historial de incidentes*
 
-![Alerta de aire](./screenshots/04-alerta-critica.png)
+![Alerta de aire](4.png)
 
 ---
 
 **Reanudación post-alerta — Infusión continúa desde el punto exacto**
 
-![Reanudación](./screenshots/05-reanudacion.png)
+![Reanudación](5.png)
 
 ---
 
 **Dispensador Oral — Alerta de toma activa (ámbar)**
 
-![Alerta de dosis](./screenshots/06-dosis-alerta.png)
+![Alerta de dosis](6.png)
 
 ---
 
-**Estado Bloqueado — Calendario preservado, dos rutas de salida**
 
-![Estado Bloqueado](./screenshots/07-bloqueo-calendario.png)
-
----
 
 ## 7. Conclusión
 
