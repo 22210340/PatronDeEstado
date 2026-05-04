@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MedControl Pro — Simulador de Gestión de Medicación</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+:root {
+  --bg: #07090E;
+  --bg2: #0C1018;
+  --bg3: #101520;
+  --border: rgba(255,255,255,0.06);
+  --border2: rgba(255,255,255,0.11);
+  --green: #00E676; --green-dim: rgba(0,230,118,0.12); --green-border: rgba(0,230,118,0.35);
+  --amber: #FFB300; --amber-dim: rgba(255,179,0,0.12); --amber-border: rgba(255,179,0,0.35);
+  --red: #FF1744;   --red-dim:   rgba(255,23,68,0.12);  --red-border:   rgba(255,23,68,0.35);
+  --blue: #29B6F6;  --blue-dim:  rgba(41,182,246,0.12); --blue-border:  rgba(41,182,246,0.35);
+  --text: #DDE1E8;
+  --muted: #7A8090;
+  --mono: 'Share Tech Mono', monospace;
+  --ui: 'Rajdhani', sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--ui);min-height:100vh}
+
+/* Panel theming */
+.panel{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:22px;position:relative;overflow:hidden;transition:border-color .3s,box-shadow .4s}
+.s-config  {border-color:var(--blue-border)!important;}
+.s-infusion{border-color:var(--green-border)!important;box-shadow:0 0 28px rgba(0,230,118,.07)!important;}
+.s-pausa   {border-color:var(--amber-border)!important;box-shadow:0 0 28px rgba(255,179,0,.07)!important;}
+.s-alerta  {border-color:var(--red-border)!important;}
+.s-completado{border-color:var(--green-border)!important;box-shadow:0 0 36px rgba(0,230,118,.12)!important;}
+.s-espera  {border-color:var(--green-border)!important;}
+.s-atoma   {border-color:var(--amber-border)!important;box-shadow:0 0 28px rgba(255,179,0,.08)!important;}
+.s-bloqueo {border-color:var(--red-border)!important;box-shadow:0 0 28px rgba(255,23,68,.08)!important;}
+
+@keyframes blink-red{0%,49%{background:rgba(255,23,68,.13);border-color:rgba(255,23,68,.7)!important}50%,100%{background:var(--bg3);border-color:rgba(255,23,68,.25)!important}}
+.blink-alarm{animation:blink-red .65s infinite}
+@keyframes scan{0%{top:-3px;opacity:.5}100%{top:100%;opacity:0}}
+.scanline{position:absolute;left:0;width:100%;height:3px;background:linear-gradient(to bottom,transparent,rgba(0,230,118,.22),transparent);animation:scan 3.5s linear infinite;pointer-events:none}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.4}}
+.pulse{animation:pulse-dot 1.4s ease-in-out infinite}
+@keyframes amber-pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,179,0,.45)}60%{box-shadow:0 0 0 10px rgba(255,179,0,0)}}
+.pill-alert-pulse{animation:amber-pulse 1.6s ease-in-out infinite}
+
+/* Digital displays */
+.digit{font-family:var(--mono);letter-spacing:.04em}
+
+/* Progress */
+.prog-wrap{background:rgba(255,255,255,.04);border-radius:4px;overflow:hidden;height:22px;border:1px solid rgba(255,255,255,.07)}
+.prog-bar{height:100%;position:relative;transition:width .12s linear}
+.prog-bar::after{content:'';position:absolute;top:0;right:0;width:3px;height:100%;background:rgba(255,255,255,.55)}
+
+/* Buttons */
+.btn{font-family:var(--ui);font-weight:600;letter-spacing:.09em;text-transform:uppercase;font-size:12px;padding:9px 18px;border-radius:5px;border:1px solid;cursor:pointer;transition:all .15s}
+.btn:disabled{opacity:.28;cursor:not-allowed;pointer-events:none}
+.btn:not(:disabled):hover{filter:brightness(1.15);transform:translateY(-1px)}
+.btn:not(:disabled):active{transform:translateY(0)}
+.b-green{background:var(--green-dim);border-color:var(--green-border);color:var(--green)}
+.b-amber{background:var(--amber-dim);border-color:var(--amber-border);color:var(--amber)}
+.b-red{background:var(--red-dim);border-color:var(--red-border);color:var(--red)}
+.b-blue{background:var(--blue-dim);border-color:var(--blue-border);color:var(--blue)}
+
+/* Status badge */
+.badge{display:inline-flex;align-items:center;gap:7px;padding:5px 13px;border-radius:3px;font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;border:1px solid}
+
+/* Inputs */
+.field{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:4px;color:var(--text);font-family:var(--mono);padding:9px 13px;width:100%;font-size:15px;transition:border-color .2s}
+.field:focus{outline:none;border-color:var(--blue-border);background:rgba(41,182,246,.05)}
+.flabel{font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+select.field option{background:#101520}
+
+/* Dark display box */
+.dbox{background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.05);border-radius:6px;padding:14px}
+
+/* History entries */
+.dose-row{display:flex;align-items:center;gap:10px;padding:7px 11px;border-radius:4px;background:rgba(255,255,255,.025);border-left:3px solid;font-size:12px;font-family:var(--mono)}
+
+/* Hour pill */
+.hpill{width:46px;height:46px;border-radius:50%;border:2px solid;display:flex;align-items:center;justify-content:center;font-size:12px;font-family:var(--mono);font-weight:600;transition:all .3s}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.09);border-radius:3px}
+
+/* Divider */
+.div-h{height:1px;background:var(--border);margin:14px 0}
+
+.mermaid svg{max-width:100%!important}
+</style>
+</head>
+<body class="p-4 md:p-6">
+
+<!-- ════════ HEADER ════════ -->
+<header class="flex items-center justify-between mb-6 pb-4" style="border-bottom:1px solid var(--border)">
+  <div class="flex items-center gap-3">
+    <div style="width:42px;height:42px;border-radius:8px;background:var(--green-dim);border:1px solid var(--green-border);display:flex;align-items:center;justify-content:center">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#00E676" stroke-width="1.6" stroke-linecap="round"><path d="M12 2v20M2 12h20M7.5 7.5l9 9M16.5 7.5l-9 9"/></svg>
+    </div>
+    <div>
+      <div style="font-family:var(--mono);font-size:20px;letter-spacing:.04em">MedControl<span style="color:var(--green)">Pro</span></div>
+      <div style="font-size:10px;color:var(--muted);letter-spacing:.15em;text-transform:uppercase">Sistema Simulado · Patrón Estado</div>
+    </div>
+  </div>
+  <div class="flex items-center gap-5">
+    <div style="font-family:var(--mono);font-size:22px;color:var(--green)" id="clock">00:00:00</div>
+    <div>
+      <div class="flabel mb-1">Veloc. simulación</div>
+      <select class="field" style="width:auto;font-size:12px;padding:6px 10px" id="simSpeed" onchange="setSimSpeed(+this.value)">
+        <option value="1">1× Real</option>
+        <option value="60" selected>60× Rápido</option>
+        <option value="300">300× Ultra</option>
+      </select>
+    </div>
+  </div>
+</header>
+
+<!-- ════════ MAIN GRID ════════ -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+
+  <!-- ── IV PUMP ── -->
+  <div class="panel s-config" id="ivPanel">
+    <div class="scanline" id="ivScan" style="display:none"></div>
+
+    <div class="flex items-start justify-between mb-4">
+      <div>
+        <div style="font-size:10px;color:var(--muted);letter-spacing:.14em;text-transform:uppercase;margin-bottom:3px">Módulo 01 — Suero IV</div>
+        <div style="font-family:var(--mono);font-size:17px">Bomba de Infusión</div>
+      </div>
+      <div class="badge" id="ivBadge" style="background:var(--blue-dim);border-color:var(--blue-border);color:var(--blue)">
+        <div class="pulse" style="width:7px;height:7px;border-radius:50%;background:var(--blue)"></div>
+        CONFIGURACIÓN
+      </div>
+    </div>
+
+    <!-- Config form -->
+    <div id="ivCfg">
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div><div class="flabel">Volumen</div>
+          <select class="field" id="ivVol"><option value="100">100 ml</option><option value="250">250 ml</option><option value="500" selected>500 ml</option><option value="1000">1000 ml</option></select></div>
+        <div><div class="flabel">Tiempo total</div>
+          <select class="field" id="ivTime"><option value="1800">30 min</option><option value="3600" selected>1 hora</option><option value="14400">4 horas</option><option value="28800">8 horas</option><option value="86400">24 horas</option></select></div>
+      </div>
+      <div class="mb-3"><div class="flabel">Fármaco</div><input class="field" id="ivMed" value="Suero Fisiológico 0.9%"></div>
+    </div>
+
+    <!-- Digital display -->
+    <div class="dbox mb-3">
+      <div class="grid grid-cols-3 gap-3 mb-3">
+        <div><div class="flabel">ml restantes</div><div class="digit" style="font-size:30px;color:var(--green)" id="ivRem">---</div></div>
+        <div><div class="flabel">Tasa ml/h</div><div class="digit" style="font-size:30px;color:var(--blue)" id="ivRate">---</div></div>
+        <div><div class="flabel">Tiempo rest.</div><div class="digit" style="font-size:30px;color:var(--amber)" id="ivTLeft">---</div></div>
+      </div>
+      <div class="flex justify-between mb-1" style="font-family:var(--mono);font-size:10px;color:var(--muted)">
+        <span>0%</span><span id="ivPct">—</span><span>100%</span>
+      </div>
+      <div class="prog-wrap"><div class="prog-bar" id="ivBar" style="width:0%;background:linear-gradient(to right,rgba(0,230,118,.25),rgba(0,230,118,.8))"></div></div>
+    </div>
+
+    <!-- Alarm box -->
+    <div id="ivAlarm" style="display:none;background:rgba(255,23,68,.1);border:1px solid rgba(255,23,68,.5);border-radius:6px;padding:14px;margin-bottom:12px">
+      <div style="color:var(--red);font-weight:700;font-size:15px;letter-spacing:.07em;margin-bottom:8px">⚠ ALARMA — AIRE DETECTADO EN LÍNEA</div>
+      <div style="color:rgba(255,255,255,.58);font-size:12px;margin-bottom:10px">Burbuja de aire detectada en catéter IV. Infusión detenida por seguridad. Purgue la línea antes de continuar.</div>
+      <!-- Frozen-state snapshot — values come from ctx, never reset -->
+      <div style="display:flex;gap:10px;margin-bottom:12px">
+        <div style="flex:1;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.07);border-radius:5px;padding:9px;text-align:center">
+          <div style="font-size:9.5px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;margin-bottom:3px">Estado congelado</div>
+          <div class="digit" style="font-size:13px;color:var(--amber)" id="ivAlarmOrigin">—</div>
+        </div>
+        <div style="flex:1;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.07);border-radius:5px;padding:9px;text-align:center">
+          <div style="font-size:9.5px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;margin-bottom:3px">ml preservados</div>
+          <div class="digit" style="font-size:13px;color:var(--green)" id="ivAlarmRem">—</div>
+        </div>
+        <div style="flex:1;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.07);border-radius:5px;padding:9px;text-align:center">
+          <div style="font-size:9.5px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;margin-bottom:3px">Tiempo rest.</div>
+          <div class="digit" style="font-size:13px;color:var(--amber)" id="ivAlarmTime">—</div>
+        </div>
+      </div>
+      <!-- Incident log -->
+      <div id="ivIncidentLog" style="max-height:72px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;margin-bottom:10px"></div>
+      <!-- PRIMARY: resolve and resume — goes back to IVInfusionState, NOT to config -->
+      <button class="btn b-green w-full" style="margin-bottom:6px;font-size:13px" onclick="ivCtx.acknowledge()">✓ LÍNEA PURGADA — RESOLVER Y REANUDAR INFUSIÓN</button>
+      <!-- SECONDARY: only if user truly wants to start over -->
+      <button class="btn b-red w-full" style="font-size:11px;opacity:.65" onclick="ivCtx.fullReset()">⬛ CANCELAR INFUSIÓN Y VOLVER A CONFIGURACIÓN</button>
+    </div>
+
+    <!-- Controls -->
+    <div class="flex gap-2">
+      <button class="btn b-green flex-1" id="ivStart" onclick="ivCtx.start()">▶ INICIAR</button>
+      <button class="btn b-amber flex-1" id="ivPause" onclick="ivCtx.pause()" disabled>⏸ PAUSAR</button>
+      <button class="btn b-green flex-1" id="ivResume" onclick="ivCtx.resume()" style="display:none">▶ REANUDAR</button>
+      <button class="btn b-red" id="ivAir" onclick="ivCtx.airAlarm()" disabled title="Simular detección de aire en línea">☠ AIRE</button>
+    </div>
+    <div style="font-size:10.5px;color:var(--muted);margin-top:8px">Configure los parámetros → Inicie → Monitorice en tiempo simulado</div>
+  </div>
+
+  <!-- ── PILLBOX ── -->
+  <div class="panel s-config" id="pillPanel">
+
+    <div class="flex items-start justify-between mb-4">
+      <div>
+        <div style="font-size:10px;color:var(--muted);letter-spacing:.14em;text-transform:uppercase;margin-bottom:3px">Módulo 02 — Oral</div>
+        <div style="font-family:var(--mono);font-size:17px">Pastillero Inteligente</div>
+      </div>
+      <div class="badge" id="pillBadge" style="background:var(--blue-dim);border-color:var(--blue-border);color:var(--blue)">
+        <div class="pulse" style="width:7px;height:7px;border-radius:50%;background:var(--blue)"></div>
+        PROGRAMACIÓN
+      </div>
+    </div>
+
+    <!-- Config form -->
+    <div id="pillCfg">
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div><div class="flabel">Medicamento</div><input class="field" id="pillMed" value="Amoxicilina 500mg"></div>
+        <div><div class="flabel">Duración</div>
+          <select class="field" id="pillDays"><option value="3">3 días</option><option value="7" selected>7 días</option><option value="14">14 días</option><option value="30">30 días</option></select></div>
+      </div>
+      <div class="mb-3"><div class="flabel">Frecuencia</div>
+        <select class="field" id="pillFreq" onchange="toggleCustom(this.value)">
+          <option value="8h">Cada 8 horas (08:00, 16:00, 00:00)</option>
+          <option value="12h">Cada 12 horas (08:00, 20:00)</option>
+          <option value="24h">Una vez al día (08:00)</option>
+          <option value="custom">Horas específicas…</option>
+        </select>
+      </div>
+      <div id="customPanel" style="display:none" class="mb-3">
+        <div class="flabel">Horas (HH:MM, separadas por coma)</div>
+        <input class="field" id="customH" placeholder="08:00, 14:00, 22:00">
+      </div>
+      <button class="btn b-blue w-full" onclick="pillCtx.program()">PROGRAMAR TRATAMIENTO →</button>
+    </div>
+
+    <!-- Active panel -->
+    <div id="pillActive" style="display:none">
+      <!-- Stats -->
+      <div class="dbox mb-3">
+        <div class="grid grid-cols-3 gap-3">
+          <div><div class="flabel">Día</div><div class="digit" style="font-size:28px;color:var(--blue)" id="pDay">1</div></div>
+          <div><div class="flabel">Próx. dosis</div><div class="digit" style="font-size:28px;color:var(--green)" id="pNext">--:--</div></div>
+          <div><div class="flabel">Omitidas</div><div class="digit" style="font-size:28px;color:var(--red)" id="pMissed">0</div></div>
+        </div>
+      </div>
+
+      <!-- Alert box (dose time) -->
+      <div id="pillAlert" style="display:none" class="mb-3 p-4 rounded pill-alert-pulse" style="background:var(--amber-dim);border:1px solid var(--amber-border)">
+        <div style="color:var(--amber);font-weight:700;font-size:14px;letter-spacing:.07em;margin-bottom:5px">💊 HORA DE TOMAR MEDICACIÓN</div>
+        <div style="color:rgba(255,255,255,.65);font-size:12px;margin-bottom:10px" id="pAlertText">Dosis #1</div>
+        <div class="flex gap-2" id="pillAlertBtns">
+          <button class="btn b-green flex-1" id="pTakeBtn" onclick="pillCtx.take()">✓ TOMAR</button>
+          <button class="btn b-amber" id="pSnoozeBtn" onclick="pillCtx.snooze()">⏰ +5 MIN</button>
+        </div>
+      </div>
+
+      <!-- Schedule today -->
+      <div style="font-size:10px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;margin-bottom:7px">Horario diario</div>
+      <div id="pSchedule" class="flex gap-2 flex-wrap mb-3"></div>
+
+      <!-- History -->
+      <div style="font-size:10px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px">Historial</div>
+      <div id="pHistory" style="max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;margin-bottom:12px"></div>
+
+      <!-- Simulate / reset -->
+      <div class="flex gap-2">
+        <button class="btn b-blue flex-1" id="simDoseBtn" onclick="pillCtx.simulateDose()">⚡ SIMULAR DOSIS</button>
+        <button class="btn b-red" onclick="pillCtx.reset()">↩ REINICIAR</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ STATE DIAGRAMS ════════ -->
+<div class="panel mb-5" style="background:var(--bg2)">
+  <div style="font-size:10px;color:var(--muted);letter-spacing:.14em;text-transform:uppercase;margin-bottom:16px">Diagrama de Máquinas de Estado (Mermaid)</div>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px;letter-spacing:.04em">IV — Transición crítica Pausa → Alerta</div>
+      <div class="mermaid">
+stateDiagram-v2
+    [*] --> Configuracion
+    Configuracion --> Infusion : iniciar()
+    Infusion --> Pausa : pausar()
+    Infusion --> Alerta : airAlarm() ⚠ PRIORIDAD MÁXIMA
+    Infusion --> Completado : remaining == 0
+    Pausa --> Infusion : reanudar()
+    Pausa --> Alerta : airAlarm() ⚠ SALTO INMEDIATO
+    Alerta --> Infusion : resolverIncidencia() ctx.remaining PRESERVADO
+    Alerta --> Configuracion : cancelarInfusion()
+    Completado --> Configuracion : auto / reset()
+
+    note right of Alerta
+        ctx.remaining y ctx.volume
+        NUNCA se borran en Alerta.
+        resolverIncidencia reanuda
+        con valores exactos.
+    end note
+      </div>
+    </div>
+    <div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px;letter-spacing:.04em">Oral — Escalada por omisiones</div>
+      <div class="mermaid">
+stateDiagram-v2
+    [*] --> Programacion
+    Programacion --> Espera : programar()
+    Espera --> AlertaToma : horaLlegada()
+    AlertaToma --> Espera : tomar()
+    AlertaToma --> AlertaToma : snooze() [max 3x]
+    AlertaToma --> Bloqueo : omisiones >= 3
+    AlertaToma --> Espera : timeout sin toma
+    Bloqueo --> Programacion : reconocer() / reset()
+    Espera --> Programacion : reset()
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ SECURITY ANALYSIS ════════ -->
+<div class="panel mb-5">
+  <div style="font-size:10px;color:var(--muted);letter-spacing:.14em;text-transform:uppercase;margin-bottom:16px">Análisis de Seguridad — Por qué el Patrón Estado supera a if/else</div>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-4">
+    <div>
+      <div style="color:var(--red);font-size:12px;font-weight:700;letter-spacing:.08em;margin-bottom:10px">✗ Estructura if/else — Riesgos críticos</div>
+      <pre style="background:rgba(255,23,68,.05);border:1px solid rgba(255,23,68,.2);border-radius:6px;padding:14px;font-size:11.5px;color:rgba(255,255,255,.65);overflow-x:auto;font-family:var(--mono);line-height:1.65">function handleAirAlarm(currentState) {
+  if (currentState === "infusion") {
+    stopInfusion();
+    triggerAlert();         // ✓ Cubierto
+  } else if (currentState === "pausa") {
+    // ← OMISIÓN SILENCIOSA:
+    //   El desarrollador olvidó este caso.
+    //   En estado Pausa, la alarma de aire
+    //   NO se activa. ERROR CRÍTICO DE SEGURIDAD.
+  }
+  // Completado, Config → sin manejo → BUG
+}
+// Añadir un nuevo estado = revisar todos
+// los if/else en todo el código. O(n²).</pre>
+      <div style="font-size:11.5px;color:rgba(255,100,100,.8);margin-top:8px;line-height:1.6">
+        <strong>Riesgos:</strong> estados no manejados silenciosos, condiciones de carrera, deuda técnica O(n²), imposible auditar cobertura.
+      </div>
+    </div>
+    <div>
+      <div style="color:var(--green);font-size:12px;font-weight:700;letter-spacing:.08em;margin-bottom:10px">✓ Patrón Estado — Seguridad estructural</div>
+      <pre style="background:rgba(0,230,118,.05);border:1px solid rgba(0,230,118,.2);border-radius:6px;padding:14px;font-size:11.5px;color:rgba(255,255,255,.65);overflow-x:auto;font-family:var(--mono);line-height:1.65">class IVPausaState extends IVState {
+  // La clase SABE manejar la alarma
+  // independientemente desde dónde venga.
+  airAlarm() {
+    this.ctx.setState(             // ✓ Atómico
+      new IVAlertaState(this.ctx)  // ✓ Siempre correcto
+    );
+  }
+}
+
+class IVInfusionState extends IVState {
+  airAlarm() {                     // ✓ Mismo contrato
+    this.ctx.setState(
+      new IVAlertaState(this.ctx)
+    );
+  }
+  // Nuevo estado = nueva clase aislada. O(1).
+}</pre>
+      <div style="font-size:11.5px;color:rgba(100,255,150,.8);margin-top:8px;line-height:1.6">
+        <strong>Ventajas:</strong> transiciones atómicas (exit→enter), cobertura garantizada por estructura, escala O(n), fácil de auditar.
+      </div>
+    </div>
+  </div>
+  <div class="div-h"></div>
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+    <div style="background:var(--blue-dim);border:1px solid var(--blue-border);border-radius:6px;padding:14px">
+      <div style="color:var(--blue);font-size:11px;font-weight:700;letter-spacing:.1em;margin-bottom:6px">ENCAPSULAMIENTO</div>
+      <div style="color:rgba(255,255,255,.55);font-size:11.5px;line-height:1.6">Cada estado gestiona solo su lógica. Modificar <code style="color:var(--blue)">AlertaState</code> no afecta ningún otro estado del sistema.</div>
+    </div>
+    <div style="background:var(--green-dim);border:1px solid var(--green-border);border-radius:6px;padding:14px">
+      <div style="color:var(--green);font-size:11px;font-weight:700;letter-spacing:.1em;margin-bottom:6px">TRANSICIONES ATÓMICAS</div>
+      <div style="color:rgba(255,255,255,.55);font-size:11.5px;line-height:1.6"><code style="color:var(--green)">exit()</code> siempre se ejecuta antes de <code style="color:var(--green)">enter()</code>. Nunca existen estados intermedios inválidos ni condiciones de carrera.</div>
+    </div>
+    <div style="background:var(--amber-dim);border:1px solid var(--amber-border);border-radius:6px;padding:14px">
+      <div style="color:var(--amber);font-size:11px;font-weight:700;letter-spacing:.1em;margin-bottom:6px">ALERTAS CONCURRENTES</div>
+      <div style="color:rgba(255,255,255,.55);font-size:11.5px;line-height:1.6">La alarma de aire actúa como interrupción de máxima prioridad. El patrón garantiza que <em>desde cualquier estado</em> la transición a <code style="color:var(--amber)">Alerta</code> es siempre correcta.</div>
+    </div>
+  </div>
+</div>
+
+<footer style="text-align:center;font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:12px 0">
+  MedControl Pro · Simulador Académico · Patrón de Diseño Estado (GoF) · No para uso clínico real
+</footer>
+
+<!-- ════════ JAVASCRIPT ════════ -->
+<script>
+/* ── Audio ── */
+let actx = null;
+function getACtx(){if(!actx)actx=new(window.AudioContext||window.webkitAudioContext)();return actx}
+function beep(freq=880,dur=180,vol=0.04){
+  try{const c=getACtx(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);
+  o.frequency.value=freq;o.type='square';g.gain.setValueAtTime(vol,c.currentTime);
+  g.gain.exponentialRampToValueAtTime(.001,c.currentTime+dur/1000);o.start();o.stop(c.currentTime+dur/1000)}catch(e){}}
+let alarmInt=null;
+function startAlarm(){if(alarmInt)return;alarmInt=setInterval(()=>{beep(660,120,.06);setTimeout(()=>beep(880,120,.06),200)},800)}
+function stopAlarm(){clearInterval(alarmInt);alarmInt=null}
+function doseChime(){beep(523,180,.05);setTimeout(()=>beep(659,180,.05),220);setTimeout(()=>beep(784,360,.05),440)}
+function okChime(){beep(880,180,.04);setTimeout(()=>beep(1047,180,.04),220);setTimeout(()=>beep(1319,350,.04),440)}
+
+/* ── Clock ── */
+setInterval(()=>{const n=new Date();document.getElementById('clock').textContent=n.toTimeString().slice(0,8)},1000);
+
+/* ── Sim speed ── */
+let simSpeed=60;
+function setSimSpeed(v){simSpeed=v;if(ivCtx)ivCtx.speed=v}
+
+/* ══════════════════════════════════════
+   IV PUMP — STATE PATTERN
+══════════════════════════════════════ */
+class IVState{
+  constructor(ctx){this.ctx=ctx}
+  enter(){}exit(){}tick(){}start(){}pause(){}resume(){}airAlarm(){}acknowledge(){}
+}
+
+class IVConfiguracionState extends IVState{
+  enter(){
+    ivUI.panel('s-config');ivUI.badge('CONFIGURACIÓN','blue');
+    ivUI.show('ivCfg',1);ivUI.show('ivAlarm',0);ivUI.show('ivScan',0);
+    ivUI.btn('ivStart',1,1);ivUI.btn('ivPause',1,0);ivUI.btn('ivResume',0,0,1);ivUI.btn('ivAir',1,0);
+    ivUI.reset();
+  }
+  start(){
+    const v=+document.getElementById('ivVol').value,t=+document.getElementById('ivTime').value;
+    this.ctx.volume=v;this.ctx.totalTime=t;this.ctx.remaining=v;
+    this.ctx.setState(new IVInfusionState(this.ctx));
+  }
+}
+
+class IVInfusionState extends IVState{
+  enter(){
+    ivUI.panel('s-infusion');ivUI.badge('INFUSIÓN ACTIVA','green');
+    ivUI.show('ivCfg',0);ivUI.show('ivAlarm',0);ivUI.show('ivScan',1);
+    ivUI.btn('ivStart',1,0);ivUI.btn('ivPause',1,1);ivUI.btn('ivResume',0,0,1);ivUI.btn('ivAir',1,1);
+    this.ctx.timer=setInterval(()=>this.ctx.tick(),100);
+  }
+  exit(){clearInterval(this.ctx.timer)}
+  tick(){
+    const rate=this.ctx.volume/this.ctx.totalTime;
+    this.ctx.remaining=Math.max(0,this.ctx.remaining-rate*.1*this.ctx.speed);
+    ivUI.update(this.ctx);
+    if(this.ctx.remaining<=0)this.ctx.setState(new IVCompletadoState(this.ctx));
+  }
+  pause(){this.ctx.setState(new IVPausaState(this.ctx))}
+  airAlarm(){this.ctx.preAlertState='infusion';this.ctx.setState(new IVAlertaState(this.ctx))}
+}
+
+class IVPausaState extends IVState{
+  enter(){
+    ivUI.panel('s-pausa');ivUI.badge('PAUSADO','amber');
+    ivUI.show('ivCfg',0);ivUI.show('ivAlarm',0);ivUI.show('ivScan',0);
+    ivUI.btn('ivStart',1,0);ivUI.btn('ivPause',1,0);ivUI.btn('ivResume',1,1);ivUI.btn('ivAir',1,1);
+  }
+  resume(){this.ctx.setState(new IVInfusionState(this.ctx))}
+  /* ★ TRANSICIÓN CRÍTICA DE SEGURIDAD: Pausa → Alerta SIEMPRE activo */
+  airAlarm(){this.ctx.preAlertState='pausa';this.ctx.setState(new IVAlertaState(this.ctx))}
+}
+
+class IVAlertaState extends IVState{
+  enter(){
+    // ── SNAPSHOT: read-only capture — remaining & volume are NEVER modified here ──
+    this.ctx.incidentLog = this.ctx.incidentLog || [];
+    const now = new Date().toLocaleTimeString();
+    const originLabel = this.ctx.preAlertState === 'pausa' ? 'EN PAUSA' : 'EN INFUSIÓN';
+    const remSnap = Math.round(this.ctx.remaining);
+    const rate = this.ctx.volume / this.ctx.totalTime;
+    const tlsSec = this.ctx.remaining / rate;
+    const th = Math.floor(tlsSec/3600), tm = Math.floor((tlsSec%3600)/60);
+    const timeSnap = String(th).padStart(2,'0')+':'+String(tm).padStart(2,'0');
+    // Log the incident (preserved across the alert)
+    this.ctx.incidentLog.push({time: now, origin: originLabel, rem: remSnap, timeLeft: timeSnap});
+
+    ivUI.panel('s-alerta blink-alarm');ivUI.badge('⚠ AIRE EN LÍNEA','red');
+    ivUI.show('ivAlarm',1);ivUI.show('ivScan',0);
+    ivUI.btn('ivStart',1,0);ivUI.btn('ivPause',1,0);ivUI.btn('ivResume',0,0,1);ivUI.btn('ivAir',1,0);
+
+    // Populate frozen-state snapshot display
+    document.getElementById('ivAlarmOrigin').textContent = originLabel;
+    document.getElementById('ivAlarmRem').textContent = remSnap + ' ml';
+    document.getElementById('ivAlarmTime').textContent = timeSnap;
+
+    // Render incident log
+    const logEl = document.getElementById('ivIncidentLog');
+    logEl.innerHTML = '';
+    this.ctx.incidentLog.forEach(e => {
+      const r = document.createElement('div');
+      r.style.cssText='display:flex;gap:8px;font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.5);padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04)';
+      r.innerHTML=`<span style="color:var(--muted)">${e.time}</span><span>Incidente desde ${e.origin}</span><span style="color:var(--green)">${e.rem} ml restantes</span>`;
+      logEl.appendChild(r);
+    });
+
+    startAlarm();
+  }
+  exit(){stopAlarm()}
+
+  // ★ PRIMARY PATH: Alerta → IVInfusionState
+  // ctx.remaining and ctx.volume are untouched — timer resumes from exact frozen point
+  acknowledge(){
+    this.ctx.setState(new IVInfusionState(this.ctx));
+  }
+
+  // SECONDARY PATH: user explicitly cancels the infusion session
+  fullReset(){
+    this.ctx.setState(new IVConfiguracionState(this.ctx));
+    ivUI.show('ivCfg',1);
+  }
+}
+
+class IVCompletadoState extends IVState{
+  enter(){
+    ivUI.panel('s-completado');ivUI.badge('✓ COMPLETADO','green');
+    ivUI.show('ivScan',0);ivUI.btn('ivStart',1,1);ivUI.btn('ivPause',1,0);ivUI.btn('ivResume',0,0,1);ivUI.btn('ivAir',1,0);
+    document.getElementById('ivRem').textContent='0';
+    document.getElementById('ivTLeft').textContent='00:00';
+    document.getElementById('ivBar').style.width='0%';
+    okChime();
+    setTimeout(()=>{if(this.ctx.state instanceof IVCompletadoState)this.ctx.setState(new IVConfiguracionState(this.ctx))},5000);
+  }
+}
+
+class IVContext{
+  constructor(){this.volume=500;this.totalTime=3600;this.remaining=500;this.speed=60;this.timer=null;
+    this.preAlertState=null;  // 'infusion' | 'pausa' — set before entering Alerta, never cleared by Alerta
+    this.incidentLog=[];      // append-only — persists across alert cycles
+    this.state=null}
+  setState(s){if(this.state)this.state.exit();this.state=s;s.enter()}
+  tick(){this.state?.tick()}
+  start(){this.state?.start()}
+  pause(){this.state?.pause()}
+  resume(){this.state?.resume()}
+  airAlarm(){this.state?.airAlarm()}
+  acknowledge(){this.state?.acknowledge()}
+  fullReset(){this.state?.fullReset()}
+}
+
+const ivUI={
+  panel(cls){document.getElementById('ivPanel').className='panel '+cls},
+  badge(txt,col){
+    const cols={blue:['var(--blue-dim)','var(--blue-border)','var(--blue)'],green:['var(--green-dim)','var(--green-border)','var(--green)'],amber:['var(--amber-dim)','var(--amber-border)','var(--amber)'],red:['var(--red-dim)','var(--red-border)','var(--red)']};
+    const c=cols[col],b=document.getElementById('ivBadge');
+    b.style.cssText=`background:${c[0]};border:1px solid ${c[1]};color:${c[2]};display:inline-flex;align-items:center;gap:7px;padding:5px 13px;border-radius:3px;font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase`;
+    b.innerHTML=`<div class="pulse" style="width:7px;height:7px;border-radius:50%;background:${c[2]}"></div>${txt}`;
+  },
+  show(id,v){document.getElementById(id).style.display=v?'':'none'},
+  btn(id,show,enabled,forceHide){const b=document.getElementById(id);if(forceHide){b.style.display='none';return}b.style.display='';b.disabled=!enabled},
+  reset(){
+    document.getElementById('ivRem').textContent='---';document.getElementById('ivRate').textContent='---';
+    document.getElementById('ivTLeft').textContent='---';document.getElementById('ivPct').textContent='—';
+    document.getElementById('ivBar').style.width='0%';
+  },
+  update(ctx){
+    const rph=(ctx.volume/ctx.totalTime)*3600,tls=ctx.remaining/(ctx.volume/ctx.totalTime),pct=(ctx.remaining/ctx.volume)*100;
+    document.getElementById('ivRem').textContent=Math.round(ctx.remaining);
+    document.getElementById('ivRate').textContent=Math.round(rph);
+    const h=Math.floor(tls/3600),m=Math.floor((tls%3600)/60);
+    document.getElementById('ivTLeft').textContent=String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+    document.getElementById('ivPct').textContent=Math.round(pct)+'%';
+    document.getElementById('ivBar').style.width=pct+'%';
+    const col=pct>60?'rgba(0,230,118,.8)':pct>30?'rgba(255,179,0,.8)':'rgba(255,23,68,.8)';
+    document.getElementById('ivBar').style.background=`linear-gradient(to right,${col.replace('.8)','.2)')},${col})`;
+  }
+};
+
+const ivCtx=new IVContext();
+ivCtx.setState(new IVConfiguracionState(ivCtx));
+
+/* ══════════════════════════════════════
+   PILLBOX — STATE PATTERN
+══════════════════════════════════════ */
+class PillState{
+  constructor(ctx){this.ctx=ctx}
+  enter(){}exit(){}program(){}take(){}snooze(){}simulateDose(){}reset(){}
+}
+
+class PillProgramacionState extends PillState{
+  enter(){
+    pillUI.panel('s-config');pillUI.badge('PROGRAMACIÓN','blue');
+    pillUI.show('pillCfg',1);pillUI.show('pillActive',0);
+  }
+  program(){
+    const freq=document.getElementById('pillFreq').value;
+    let hours=[];
+    if(freq==='8h')hours=[8,16,0];
+    else if(freq==='12h')hours=[8,20];
+    else if(freq==='24h')hours=[8];
+    else hours=document.getElementById('customH').value.split(',').map(s=>parseInt(s.trim())).filter(n=>!isNaN(n));
+    if(!hours.length)hours=[8,16,0];
+    this.ctx.med=document.getElementById('pillMed').value||'Medicamento';
+    this.ctx.days=+document.getElementById('pillDays').value;
+    this.ctx.schedHours=hours;
+    this.ctx.day=1;this.ctx.doseNum=0;this.ctx.missed=0;this.ctx.snoozes=0;
+    this.ctx.pendingH=null;this.ctx.history=[];
+    this.ctx.setState(new PillEsperaState(this.ctx));
+  }
+}
+
+class PillEsperaState extends PillState{
+  enter(){
+    pillUI.panel('s-espera');pillUI.badge('EN ESPERA','green');
+    pillUI.show('pillCfg',0);pillUI.show('pillActive',1);pillUI.show('pillAlert',0);
+    pillUI.show('simDoseBtn',1);pillUI.updateStats(this.ctx);pillUI.renderSchedule(this.ctx);
+    this.ctx.clockTimer=setInterval(()=>this.checkClock(),15000);
+  }
+  exit(){clearInterval(this.ctx.clockTimer)}
+  checkClock(){
+    const n=new Date(),h=n.getHours(),m=n.getMinutes();
+    if(this.ctx.schedHours.includes(h)&&m===0&&this.ctx.pendingH!==h){
+      this.ctx.pendingH=h;this.ctx.doseNum++;
+      this.ctx.setState(new PillAlertaTomaState(this.ctx));
+    }
+  }
+  simulateDose(){this.ctx.doseNum++;this.ctx.pendingH=-1;this.ctx.snoozes=0;this.ctx.setState(new PillAlertaTomaState(this.ctx))}
+  reset(){this.ctx.setState(new PillProgramacionState(this.ctx))}
+}
+
+class PillAlertaTomaState extends PillState{
+  enter(){
+    pillUI.panel('s-atoma');pillUI.badge('💊 TOMAR AHORA','amber');
+    const ab=document.getElementById('pillAlert');
+    ab.style.cssText='display:block;background:var(--amber-dim);border:1px solid var(--amber-border);border-radius:6px;padding:14px;margin-bottom:12px';
+    document.getElementById('pAlertText').textContent=`${this.ctx.med} — Dosis #${this.ctx.doseNum}`;
+    const tb=document.getElementById('pTakeBtn'),sb=document.getElementById('pSnoozeBtn');
+    if(tb)tb.disabled=false;if(sb)sb.disabled=false;
+    pillUI.show('simDoseBtn',0);
+    pillUI.updateStats(this.ctx);
+    doseChime();
+    this.ctx.autoMissTimer=setTimeout(()=>{if(this.ctx.state instanceof PillAlertaTomaState)this.autoMiss()},45000);
+  }
+  exit(){clearTimeout(this.ctx.autoMissTimer)}
+  autoMiss(){this.ctx.missed++;pillUI.addHistory('missed',`Dosis #${this.ctx.doseNum}`,'Omitida');pillUI.updateStats(this.ctx);this.ctx.pendingH=null;this.ctx.snoozes=0;if(this.ctx.missed>=3)this.ctx.setState(new PillBloqueoState(this.ctx));else this.ctx.setState(new PillEsperaState(this.ctx))}
+  take(){
+    pillUI.addHistory('taken',`Dosis #${this.ctx.doseNum}`,'Tomada');
+    this.ctx.snoozes=0;this.ctx.pendingH=null;
+    okChime();this.ctx.setState(new PillEsperaState(this.ctx));
+  }
+  snooze(){
+    this.ctx.snoozes++;
+    if(this.ctx.snoozes>=3){this.autoMiss();return}
+    pillUI.badge('⏰ POSPUESTO +5 MIN — snooze '+this.ctx.snoozes+'/3','amber');
+    // ★ snooze only freezes THIS alert window — ctx.day/schedHours/history are UNTOUCHED
+    const tb=document.getElementById('pTakeBtn'),sb=document.getElementById('pSnoozeBtn');
+    if(tb)tb.disabled=true;if(sb)sb.disabled=true;
+    beep(440,100,.04);
+    clearTimeout(this.ctx.autoMissTimer);
+    this.ctx.autoMissTimer=setTimeout(()=>{
+      if(this.ctx.state instanceof PillAlertaTomaState){
+        pillUI.badge('💊 TOMAR AHORA','amber');
+        const tb2=document.getElementById('pTakeBtn'),sb2=document.getElementById('pSnoozeBtn');
+        if(tb2)tb2.disabled=false;if(sb2)sb2.disabled=false;
+        doseChime();
+      }
+    },5000);
+  }
+  reset(){clearTimeout(this.ctx.autoMissTimer);this.ctx.setState(new PillProgramacionState(this.ctx))}
+}
+
+class PillBloqueoState extends PillState{
+  enter(){
+    pillUI.panel('s-bloqueo');pillUI.badge('⛔ BLOQUEADO','red');
+    const ab=document.getElementById('pillAlert');
+    ab.style.cssText='display:block;background:var(--red-dim);border:1px solid var(--red-border);border-radius:6px;padding:14px;margin-bottom:12px';
+    document.getElementById('pAlertText').innerHTML=
+      `<strong style="color:var(--red)">${this.ctx.missed} dosis omitidas.</strong> `+
+      `Tratamiento: <span style="color:var(--blue)">${this.ctx.med}</span> — Día ${this.ctx.day}/${this.ctx.days}<br>`+
+      `<span style="color:rgba(255,255,255,.45);font-size:11px">El calendario de ${this.ctx.days} días y el historial están preservados.</span>`;
+
+    // Replace buttons with two-path resolution (rebuild each time to avoid duplicates)
+    const btns = document.getElementById('pillAlertBtns');
+    btns.innerHTML =
+      `<button class="btn b-amber flex-1" onclick="pillCtx.resolveBloqueo()" style="font-size:11.5px">
+         ↩ RECONOCER Y CONTINUAR TRATAMIENTO
+       </button>
+       <button class="btn b-red" onclick="pillCtx.reset()" style="font-size:11px;opacity:.65" title="Borra el tratamiento completo">
+         ⬛ NUEVO
+       </button>`;
+    pillUI.show('simDoseBtn',0);
+  }
+  exit(){
+    // Restore original buttons for other states
+    document.getElementById('pillAlertBtns').innerHTML=
+      `<button class="btn b-green flex-1" id="pTakeBtn" onclick="pillCtx.take()">✓ TOMAR</button>
+       <button class="btn b-amber" id="pSnoozeBtn" onclick="pillCtx.snooze()">⏰ +5 MIN</button>`;
+  }
+
+  // ★ PRIMARY PATH: Bloqueo → Espera
+  // ctx.med, ctx.days, ctx.schedHours, ctx.day, ctx.doseNum, ctx.history ALL preserved
+  resolveBloqueo(){
+    this.ctx.missed=0;               // reset only the missed counter, not the whole treatment
+    this.ctx.setState(new PillEsperaState(this.ctx));
+  }
+
+  // SECONDARY PATH: full treatment reset
+  reset(){this.ctx.missed=0;this.ctx.setState(new PillProgramacionState(this.ctx))}
+}
+
+class PillContext{
+  constructor(){this.med='';this.days=7;this.schedHours=[8,16,0];this.day=1;this.doseNum=0;this.missed=0;this.snoozes=0;this.pendingH=null;this.history=[];this.clockTimer=null;this.autoMissTimer=null;this.state=null}
+  setState(s){if(this.state)this.state.exit();this.state=s;s.enter()}
+  program(){this.state?.program()}
+  take(){this.state?.take()}
+  snooze(){this.state?.snooze()}
+  simulateDose(){this.state?.simulateDose()}
+  resolveBloqueo(){this.state?.resolveBloqueo()}
+  reset(){this.state?.reset()}
+}
+
+const pillUI={
+  panel(cls){document.getElementById('pillPanel').className='panel '+cls},
+  badge(txt,col){
+    const cols={blue:['var(--blue-dim)','var(--blue-border)','var(--blue)'],green:['var(--green-dim)','var(--green-border)','var(--green)'],amber:['var(--amber-dim)','var(--amber-border)','var(--amber)'],red:['var(--red-dim)','var(--red-border)','var(--red)']};
+    const c=cols[col],b=document.getElementById('pillBadge');
+    b.style.cssText=`background:${c[0]};border:1px solid ${c[1]};color:${c[2]};display:inline-flex;align-items:center;gap:7px;padding:5px 13px;border-radius:3px;font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase`;
+    b.innerHTML=`<div class="pulse" style="width:7px;height:7px;border-radius:50%;background:${c[2]}"></div>${txt}`;
+  },
+  show(id,v){document.getElementById(id).style.display=v?'':'none'},
+  updateStats(ctx){
+    document.getElementById('pDay').textContent=ctx.day;
+    document.getElementById('pMissed').textContent=ctx.missed;
+    const h=new Date().getHours(),next=ctx.schedHours.find(sh=>sh>h)??ctx.schedHours[0];
+    document.getElementById('pNext').textContent=String(next).padStart(2,'0')+':00';
+  },
+  renderSchedule(ctx){
+    const c=document.getElementById('pSchedule');c.innerHTML='';
+    ctx.schedHours.forEach(h=>{
+      const d=document.createElement('div');d.className='hpill';
+      d.style.cssText='width:46px;height:46px;border-radius:50%;border:2px solid var(--blue-border);display:flex;align-items:center;justify-content:center;font-size:11px;font-family:var(--mono);font-weight:600;color:var(--blue)';
+      d.textContent=String(h).padStart(2,'0')+'h';c.appendChild(d);
+    });
+  },
+  addHistory(type,label,status){
+    const c=document.getElementById('pHistory');
+    const cols={taken:['rgba(0,230,118,.25)','var(--green)'],missed:['rgba(255,23,68,.25)','var(--red)'],snoozed:['rgba(255,179,0,.25)','var(--amber)']};
+    const cl=cols[type]||cols.taken,row=document.createElement('div');
+    row.className='dose-row';row.style.borderLeftColor=cl[1];
+    const t=new Date().toLocaleTimeString();
+    row.innerHTML=`<div style="width:6px;height:6px;border-radius:50%;background:${cl[1]};flex-shrink:0"></div><div style="flex:1;color:rgba(255,255,255,.75)">${label}</div><div style="color:${cl[1]}">${status}</div><div style="color:var(--muted)">${t}</div>`;
+    c.prepend(row);
+  }
+};
+
+const pillCtx=new PillContext();
+pillCtx.setState(new PillProgramacionState(pillCtx));
+
+function toggleCustom(v){document.getElementById('customPanel').style.display=v==='custom'?'':'none'}
+
+/* Mermaid */
+mermaid.initialize({startOnLoad:true,theme:'dark',themeVariables:{primaryColor:'#1a2235',primaryTextColor:'#dde1e8',primaryBorderColor:'#2a3550',lineColor:'#4a6090',secondaryColor:'#0c1018',tertiaryColor:'#07090e',noteBkgColor:'#1a2235',noteTextColor:'#dde1e8'}});
+</script>
+</body>
+</html>
