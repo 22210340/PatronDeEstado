@@ -715,21 +715,8 @@ python -m http.server 8080
 
 ## 7. Conclusión
 
-### La Persistencia de Datos en Sistemas de Salud Embebidos
+En Conclusion es un patron que lo miro mas como un tipo de diagrama uml pero un poco mas visual a la hora de poder guiarte es muy buena arquitectura con consecuencias directas de seguridad, No hay regresiones en estados no relacionados porque no se toca el código de esos estados. Esta propiedad es especialmente valiosa en entornos regulados donde cada cambio de código requiere re-validación documentad.
 
-En la ingeniería de software médica, la pérdida de contexto durante una interrupción no es un inconveniente menor — puede resultar en una sobredosis si el sistema reinicia el contador de volumen, o en subdosificación si borra el calendario de tomas activo. El imperativo de diseño es claro: **los datos de sesión deben ser inmunes a las transiciones de estado**.
-
-Este proyecto demuestra que el **Patrón de Diseño Estado** no es solo una elección estética — es una decisión de arquitectura con consecuencias directas en la seguridad del sistema:
-
-1. **Separación estructural de datos y comportamiento:** El `Context` posee los datos; los estados poseen la lógica. `IVAlertaState` puede leer `ctx.remaining` para mostrarlo, pero físicamente no tiene acceso de escritura porque ese no es su contrato. La arquitectura hace la violación *difícil*, no solo desaconsejada.
-
-2. **Transiciones como ciudadanos de primera clase:** Al modelar cada transición como un método explícito (`airAlarm()`, `acknowledge()`, `resolveBloqueo()`), el código de negocio es legible como una especificación. Un ingeniero biomédico puede verificar el comportamiento de seguridad leyendo solo los nombres de los métodos, sin descifrar ramas `if/else` anidadas.
-
-3. **Facilidad de mantenimiento a largo plazo:** Cuando los requisitos de un dispositivo médico cambian — nuevo tipo de sensor, nuevo protocolo de alerta, nueva frecuencia de dosis — el patrón Estado garantiza que el cambio se localiza en una clase. No hay regresiones en estados no relacionados porque no se toca el código de esos estados. Esta propiedad es especialmente valiosa en entornos regulados (FDA, ISO 13485) donde cada cambio de código requiere re-validación documentada.
-
-4. **El `incidentLog` como invariante de auditoría:** En dispositivos médicos reales, el registro de cada incidente (cuándo ocurrió, desde qué estado, con cuánto volumen restante) es un requisito regulatorio. Al implementarlo como un array append-only en el `Context`, el patrón garantiza que ningún estado pueda borrarlo — solo pueden añadir entradas.
-
-> *"La calidad de un sistema crítico no se mide por su comportamiento en condiciones normales, sino por su corrección durante una interrupción."*
 
 ---
 
@@ -739,6 +726,5 @@ Este proyecto demuestra que el **Patrón de Diseño Estado** no es solo una elec
 
 *No destinado a uso clínico real.*
 
-[![Volver arriba](#-medcontrol-pro)](.)
 
 </div>
